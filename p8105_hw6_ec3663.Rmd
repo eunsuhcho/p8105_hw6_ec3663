@@ -1,0 +1,5 @@
+---
+title: "Homework 6"
+output: github_document
+---
+
