@@ -113,7 +113,7 @@ bw_df = bw_df |>
 Proposing a regression model
 
 ```{r}
-fit = lm(bwt ~ babysex + delwt + gaweeks + smoken + wtgain, data = bw_df)
+fit = lm(bwt ~ delwt + gaweeks + smoken + wtgain, data = bw_df)
 
 fit |>
   broom::tidy() |>
@@ -123,8 +123,52 @@ fit |>
 summary(fit)
 ```
 
+The proposed model is based on biological factors that have been proven to have an effect on the baby's weight, including `delwt`, mother's weight at delivery in pounds, `gaweeks`, gestational age in weeks, `smoken`, average number of cigarettes smoked per day during pregnancy, and `wtgain`, mother's weight gain during pregnancy in pounds. The P values for the predictors are all less than 0.01, so none of the hypothesized predictors need to be removed from the model.
 
+Plotting residuals against fitted values
 
+```{r}
+bw_df |> 
+  modelr::add_residuals(fit) |> 
+  modelr::add_predictions(fit) |> 
+  ggplot(aes(x = resid, y = pred)) +
+  geom_point(alpha = 0.5)
+```
+
+The residuals plot shows the majority of residual values being clustered around 0, with the average predicted birthweight sitting at around 3250 grams.
+
+Comparing the model to two others
+
+```{r}
+cv_df =
+  crossv_mc(bw_df, 100) |> 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+```
+
+```{r}
+cv_df = cv_df |> 
+  mutate(
+    model_prop = map(train, \(df) lm(bwt ~ delwt + gaweeks + smoken + wtgain, data = df)),
+    model_1 = map(train, \(df) lm(bwt ~ blength + gaweeks, data = df)),
+    model_2 = map(train, \(df) lm(bwt ~ bhead + blength + babysex + bhead*blength + bhead*babysex + blength*babysex + bhead*blength*babysex, data = df))) |> 
+  mutate(
+    rmse_prop = map2_dbl(model_prop, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_1 = map2_dbl(model_1, test, \(mod, df) rmse(model = mod, data = df)),
+    rmse_2 = map2_dbl(model_2, test, \(mod, df) rmse(model = mod, data = df)))
+
+cv_df |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_") |> 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+```
+
+The plot displays the RMSE value distributions for the three different models. Model 2, the second model offered for comparison (with the interaction terms), has the lowest RMSE values and thus has better predictive performance than the proposed model and the model with only the main effects. The model with the three-way interaction has the best fit.
 
 
 
